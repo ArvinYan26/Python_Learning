@@ -1,0 +1,5 @@
+length_X_trian: 1335
+length_X_test: 149
+k = 2
+classes = 10
+acc = 0.49 tiago = 0.36

@@ -1,0 +1,499 @@
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+from sklearn import preprocessing
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import NearestNeighbors
+from test import split_data   #test文件中的spli_data函数
+from make_simple_dataset import generate_dataset
+import time
+
+class DataClassification(object):
+    """iris数据集分类"""
+
+    def __init__(self, k, num_class):
+        self.k = k
+        #self.g = []
+        self.X_net, self.Y_net, self.X_items, self.Y_items = self.get_iris()
+        self.data_len = len(self.X_net)  # 此程序是24
+        self.num_class = num_class
+        self.per_class_data_len = int(self.data_len / self.num_class)
+        self.plot_data(self.X_net)  #直接执行此函数
+        self.nbrs = []  #用来存储是哪个类别网络的nbrs
+        self.radius = []  #用来存储是哪个类别的
+        self.weight_alpha = [0.3, 0.4, 0.3]  #measures权重
+        self.color_map = {0: 'red', 1: 'green', 2: 'blue', 3: 'black'}
+        self.net_measure = {}
+        self.G0 = nx.Graph()
+        self.G1 = nx.Graph()
+        self.G2 = nx.Graph()
+        self.predict_target = []
+
+        #初始化运行程序，一开始就运行
+        self.build_X_train_network()
+        self.single_node_insert()
+        self.accuracy()
+
+
+
+
+    def get_iris(self):
+        """获取数据集"""
+        """
+        iris = load_iris()
+        iris_data = iris.data  #[:, 2:]
+        iris_target = iris.target
+        """
+        data, label = generate_dataset()
+
+        #存储切分后的数据，训练集和测试集
+        X_train1 = []
+        Y_train1 = []
+        X_train2 = []
+        Y_train2 = []
+        train_data = []
+        train_target = []
+
+        #第一次划分，train_data, train_target （0.8比例，多数），  X_train1, Y_train1 （0.2，少数）
+        train_data, train_target, X_train1, Y_train1  = split_data(data, label, X_train1, Y_train1, train_data, train_target)
+        #print("训练集：")
+        #print(np.array(X_train1), np.array(Y_train1))
+
+
+        print("datsset:")
+        print(data, label)
+        print("train_dataset")
+        print(train_data, train_target)
+        #print("demension：", data.ndim)
+        print("test_dataset：")
+        print(np.array(X_train1), np.array(Y_train1))
+
+
+        return train_data, train_target, X_train1, Y_train1
+
+
+    def plot_data(self, data):
+        """画出数据"""
+        node_style = ["ro", "go", "bo"]
+        for i in range(self.num_class):
+            plt.plot(data[self.per_class_data_len*i:self.per_class_data_len*(i+1), 0],
+                     data[self.per_class_data_len * i:self.per_class_data_len * (i + 1), 1],
+                     node_style[i],
+                     label=node_style[i])
+            plt.legend()
+        plt.show()
+
+
+
+    def data_preprocess(self, data):
+        """特征工程（归一化）"""
+        #归一化
+        scaler = preprocessing.MinMaxScaler().fit(data)
+        data = scaler.transform(data)
+
+        return data
+
+    def KNN(self, nbrs, train_data):
+        """
+        KNN获取节点邻居和邻居索引
+        :param nbrs:
+        :param train_data:
+        """
+        distances, indices = nbrs.kneighbors(train_data)
+        return distances, indices
+
+    def get_radius(self, distances):
+
+        return np.median(distances) #中位数
+
+    def epsilon_radius(self, nbrs, train_data, radius):
+        """
+
+        :param nbrs:
+        :param train_data:
+        :param radius:
+        :return:
+        """
+        nbrs.set_params(radius=radius)
+        nbrs_distances, nbrs_indices = nbrs.radius_neighbors(train_data)
+
+        return nbrs_distances, nbrs_indices
+
+    def calculate_measure(self, G):
+        """
+        :param net: 构建的网络g
+        :param nodes: 每一类的网络节点
+        :return:
+        """
+        """
+        des = nx.density(g)
+        print("密度：%f" % des)
+
+        # 度分布直方图
+        # distribution = nx.degree_histogram(g)
+        # print(distribution)
+        measures.append(des)
+        # 节点度
+        deg = nx.degree(g)
+        #print(deg)
+        """
+        measures = []
+        # 平均度，平均最短路径，平均聚类系数， 同配性， 传递性
+        # 1.  平均度
+        ave_deg = G.number_of_edges() * 2 / G.number_of_nodes()
+        ave_deg = round(ave_deg, 3)
+        #print("平均度为：%f" % ave_deg)
+        measures.append(ave_deg)
+
+        """
+        # 2.  平均最短路径长度(需要图是连通的)
+        ave_shorest = nx.average_shortest_path_length(G)
+        ave_shorest = round(ave_shorest, 3)
+        #print("平均最短路径：", ave_shorest)
+        #measures.append(ave_shorest)
+        """
+
+        # 3.  平均聚类系数
+        ave_cluster = nx.average_clustering(G)
+        ave_cluster = round(ave_cluster, 3)
+        #print("平均聚类系数：%f" % ave_cluster)
+        measures.append(ave_cluster)
+
+        # 4.  度同配系数 Compute degree assortativity of graph
+        assortativity = nx.degree_assortativity_coefficient(G)
+        assortativity = round(assortativity, 3)
+        #print("同配性：%f" % assortativity)
+        measures.append(assortativity)
+
+        """
+        # 5.  传递性transitivity：计算图的传递性，g中所有可能三角形的分数。
+        tran = nx.transitivity(G)
+        tran = round(tran, 3)
+        #print("三角形分数：%f" % tran)
+        #measures.append(tran)
+        """
+        return measures
+
+    def build_edges(self, G, i):
+
+        edges_list = []
+        nodes_list = []
+        #print("类别：", i)
+        current_data = self.X_net[self.per_class_data_len * i:self.per_class_data_len * (i + 1), :]
+        #print(current_data)
+        for index, instance in enumerate(current_data):
+            node_info = (index, {"value": list(instance), "class_num": i, "type": "train"})
+            nodes_list.append(node_info)
+        # print(self.nodes_list)
+
+        # 切片范围必须是整型
+        temp_nbrs = NearestNeighbors(self.k, metric='euclidean')
+        temp_nbrs.fit(current_data)
+        self.nbrs.append(temp_nbrs)  # 将每一类的nbrs都添加进列表， 这个
+        knn_distances, knn_indices = self.KNN(temp_nbrs, current_data)
+        #print(knn_distances, knn_indices)
+        temp_radius = self.get_radius(knn_distances)
+
+        self.radius.append(temp_radius)  # 将每一类的radius都添加进radius
+        print("temp_radius", self.radius)
+        radius_distances, radius_indices = self.epsilon_radius(temp_nbrs, current_data, temp_radius)
+        #print(radius_distances, radius_indices)
+        # 添加连边
+        for idx, one_data in enumerate(current_data):  # 这个语句仅仅是获取索引indx，然后给他连边
+            #print(radius_indices[idx])
+            if (len(radius_indices[idx])) > (self.k - 1):  # 判断用哪种方法连边构图,因为,radius应用于稠密区域，邻居大于k的话就是稠密
+                #print(radius_indices[idx])
+                for index, nbrs_indices in enumerate(radius_indices[idx]):
+                    #print(index, nbrs_indices)
+                    #for indices, eve_index in enumerate(nbrs_indices):
+                        #print(indices, eve_index)
+                    if idx == nbrs_indices:  # 如果是本身，就跳过，重新下一个循环
+                        continue
+                    edge = (idx, nbrs_indices, radius_distances[idx][index])
+                    edges_list.append(edge)
+            else:
+                #print(idx, knn_indices[idx])
+                for index, nbrs_indices in enumerate(knn_indices[idx]):
+                    #print("信息")
+                    #print(index, nbrs_indices)
+                    #for indices, eve_index in enumerate(nbrs_indices):
+                        #print(indices, eve_index)
+                    if idx == nbrs_indices:  # 如果是本身，就跳过，重新下一个循环
+                        continue
+                    edge = (idx, nbrs_indices, knn_distances[idx][index])
+                    edges_list.append(edge)
+
+        G.add_weighted_edges_from(edges_list)
+        # self.get_net_measures()  #
+        #print(G.nodes())
+        # color_list = [self.color_map[self.G.nodes[node]['class_num']] for node in self.G.nodes()]
+        # plt.subplot(211)
+        #print(self.X_net.shape)
+        nx.draw_networkx(G, node_color=self.color_map[i], with_labels=True, node_size=300) #节点默认大小为300
+        plt.title("X_net")
+        plt.show()
+        #print(self.G.nodes())
+        #print("X_net节点数：", len(G.nodes()))
+        #print("X_net边数：", len(G.edges()))
+
+    def build_X_train_network(self):
+        """
+        分开构建网络
+        :return:
+        API reference
+            klearn.neighbors.NearestNeighbors
+                - https://scikit-learn.org/stable/modules/generated
+        """
+        for i in range(self.num_class): #按类别循环遍历每一类别的每一个数据
+            if i == 0:
+                self.build_edges(self.G0, i)
+                self.net_measure[i] = self.calculate_measure(self.G0)
+            if i == 1:
+                self.build_edges(self.G1, i)
+                self.net_measure[i] = self.calculate_measure(self.G1)
+            if i == 2:
+                self.build_edges(self.G2, i)
+                self.net_measure[i] = self.calculate_measure(self.G2)
+
+    def build_X_items_network(self, G, class_num, instance):
+        """
+        添加每一个节点进是哪个类别网络
+        :param class_num: 类别，针对不同的类用不同的nbrs
+        :param instance:  节点值
+        :param node_name: 新添加的节点name
+        :return:
+        """
+        # insert_node_id = len(list(self.g.nodes()))
+        # print(insert_node_id)
+        print(G.edges())
+        print("添加的节点值：", instance)
+
+        self.node_insert_num = len(G.nodes())
+        print("self.node_insert_num", self.node_insert_num)
+
+        radius_distances, radius_indices = self.epsilon_radius(self.nbrs[class_num], [instance], self.radius[class_num])
+        # print("radius:", radius_indices)
+        distances, indices = self.KNN(self.nbrs[class_num], [instance])
+        # print("knn:", indices)    #所以有有可能包含自身 ，到时候添加边要过滤掉
+
+        # 添加到训练网络中
+        # if 0 in distances:
+        # return class_num
+
+        edge_list = []
+        G.add_node(self.node_insert_num, class_num=4, value=instance)  # 4：新颜色表示插入的新节点，用来分类
+        if len(radius_indices) > (self.k - 1):
+            # 其实此处只有一个实例输入进来，求出来的distance和indices也只是一维的
+            for index, nbrs_indices in enumerate(radius_indices[0]):
+                #for indices, eve_index, in enumerate(nbrs_indices):
+                if self.node_insert_num == nbrs_indices:
+                    continue
+                edge = (nbrs_indices, self.node_insert_num, radius_distances[0][index])
+                edge_list.append(edge)
+        else:
+            # 这里一定注意，是和那些邻居的节点索引链接，所以循环的是索引,否则会多出来很多边。
+            #print(indices)
+            for index, nbrs_indices in enumerate(indices[0]):
+                #print(self.node_insert_num)
+                #print(index, nbrs_indices)
+                #for indices, eve_index in enumerate(nbrs_indices):
+                    # print(indices, eve_index)
+                if self.node_insert_num == nbrs_indices:
+                    continue
+                edge = (nbrs_indices, self.node_insert_num, distances[0][index])
+                edge_list.append(edge)
+        G.add_weighted_edges_from(edge_list)
+
+        #print("添加边数：", len(edge_list))  #如果是0表示没有边添加进来
+        #print(edge_list)
+        # print("节点数：", len(self.g.nodes()))
+        # print(self.g.edges())
+
+        net_measure = self.calculate_measure(G)  #添加新节点后后的网络measures
+        # 计算插入前插入后的相似度（此处用欧几里得距离）
+
+        # 指标计算
+        """
+        print("指标值：")
+        print("插入节点后的每一类指标值：", self.net_measure)
+        print("class_num", class_num, self.net_measure[class_num])
+        print("插入节点后的的指标：", net_measure)
+        """
+        #插入新节点后，原来的measures需要更新
+        v1, v2 = np.array(net_measure) * self.weight_alpha, np.array(self.net_measure[class_num]) * self.weight_alpha
+
+        """
+        print("v1后:", v1)
+        print("v2:前", v2)
+        """
+        euclidean_distances = np.linalg.norm(v1 - v2) #插入后减去插入前
+        #print("前后欧差：", euclidean_distances)
+
+        #print("euclidean_distances:", euclidean_distances)
+
+        return euclidean_distances, v1, v2
+
+    def plot_insert_node(self, G, class_num):
+        """
+
+        :param G: 需要建立的图
+        :param class_num: 类别名
+        :return:
+        """
+
+        """
+        #pos:参数里面的值必须是2维的，所以四维的用不了，此处不行，所以此参数不加
+        pos = {}  #pos:用来存储要画的节点
+        for i, v in enumerate(self.X_net):
+            pos[i] = v
+        print("pos:", pos)
+        pos[node_name] = np.squeeze(instance)  #
+        print("pos:", pos)
+        """
+        #print(class_num)
+        #color_list = self.color_map.get(class_num)
+        #print(color_list)
+        #color_list = [self.color_map.get(G.nodes[node]["class_num"]) for node in G.nodes()]
+        # nx.draw_networkx(G, with_labels=True, node_color=color_list, node_size=300)
+
+        plt.title("insert_node")
+        nx.draw_networkx(G, with_labels=True, node_color=self.color_map[class_num], node_size=300)  # 节点大小默认值是300
+        plt.show()
+
+    def single_node_insert(self):
+        for index, instance in enumerate(self.X_items):
+            self.classicfication(instance)
+
+        # 画出最终的图
+        self.plot_insert_node(self.G0, 0)
+        print(len(self.G0.nodes()))
+        print(self.G0.edges())
+
+        self.plot_insert_node(self.G1, 1)
+        print(len(self.G1.nodes()))
+        print(self.G1.edges())
+
+        self.plot_insert_node(self.G2, 2)
+        print(len(self.G2.nodes()))
+        print(self.G2.edges())
+
+
+    def classicfication(self, instance):
+        """
+        对新数据的每一个数据进行分类
+        :return:
+        """
+        distances_list = [] #用于存放每类网络插入节点前和插入节点后的相似度
+        #for index, instance in enumerate(data):
+        for per_class in range(self.num_class):
+            #print(per_class)
+            #此处是将节点插入到每一类网络中去
+            if per_class == 0:
+                euclidean_distances, v1, v2 = self.build_X_items_network(self.G0, per_class, instance)
+                print("插入后：", len(self.G0.nodes()))
+                print(self.G0.edges())
+                print("v1后:", v1)
+                print("v2前:", v2)
+                print("前后欧差：", euclidean_distances)
+
+                distances_list.append(euclidean_distances)
+                self.G0.remove_node(self.node_insert_num)
+                print("移除后：", len(self.G0.nodes()))
+                print(" ")
+
+            if per_class == 1:
+                euclidean_distances, v1, v2 = self.build_X_items_network(self.G1, per_class, instance)
+                print(len(self.G1.nodes()))
+                print(self.G1.edges())
+                print("v1后:", v1)
+                print("v2:前", v2)
+                print("前后欧差：", euclidean_distances)
+
+
+                distances_list.append(euclidean_distances)
+                self.G1.remove_node(self.node_insert_num)
+                print(len(self.G1.nodes()))
+                print(" ")
+
+            if per_class == 2:
+                euclidean_distances, v1, v2 = self.build_X_items_network(self.G2, per_class, instance)
+                print(len(self.G2.nodes()))
+                print(self.G2.edges())
+                print("v1后:", v1)
+                print("v2:前", v2)
+                print("前后欧差：", euclidean_distances)
+
+
+                distances_list.append(euclidean_distances)
+                self.G2.remove_node(self.node_insert_num)
+                print(len(self.G2.nodes()))
+                print(" ")
+
+        print("欧差列表：", distances_list)
+        class_num = distances_list.index(min(distances_list))
+        print("类别名：", class_num)
+        #print("result:", result)
+        if class_num == 0:
+            print("分类前：", len(self.G0.nodes()))
+            self.build_X_items_network(self.G0, class_num, instance)
+            print("分类后：", len(self.G0.nodes()))
+            # 插入节点后，网络measures变化，所以需要更新原来字典里的measures
+            #self.net_measure[class_num] = self.calculate_measure(self.G0)
+            print(self.net_measure)
+            #self.plot_insert_node(self.G0, class_num)
+            print("calssicfication:", class_num)
+            self.predict_target.append(class_num)
+            print("*"*150)
+            #print(self.G0.nodes())
+            #print(len(self.G0.nodes()))
+
+        if class_num == 1:
+            print("分类前：", len(self.G1.nodes()))
+            self.build_X_items_network(self.G1, class_num, instance)
+            print("分类后：", len(self.G1.nodes()))
+            # 插入节点后，网络measures变化，所以需要更新原来字典里的measures
+            #self.net_measure[class_num] = self.calculate_measure(self.G1)
+            print(self.net_measure)
+            #self.plot_insert_node(self.G1, class_num)
+            print("calssicfication:", class_num)
+            self.predict_target.append(class_num)
+            print("*"*150)
+            #print(self.G1.nodes())
+            #print(len(self.G1.nodes()))
+
+        if class_num == 2:
+            print("分类前：", len(self.G2.nodes()))
+            self.build_X_items_network(self.G2, class_num, instance)
+            print("分类后：", len(self.G2.nodes()))
+            #插入节点后，网络measures变化，所以需要更新原来字典里的measures
+            #self.net_measure[class_num] = self.calculate_measure(self.G2)
+            print(self.net_measure)
+            print("calssicfication:", class_num)
+            self.predict_target.append(class_num)
+            print("*"*150)
+            #print(self.G2.nodes())
+            #print(len(self.G2.nodes()))
+
+
+    def accuracy(self):
+        """calculate accuracy """
+        label = list(map(int, self.Y_items))  # 廖雪峰，高阶函数内容
+        print("original_label:", label)
+        print("predict_label :", self.predict_target)
+
+
+        count = 0
+        for i in range(len(self.Y_items)):
+            if self.Y_items[i] == self.predict_target[i]:
+                count += 1
+        print(count)
+        accuracy = round(count / len(self.Y_items), 3)
+        print(accuracy)
+
+def main():
+
+    DataClassification(4, 3)
+
+if __name__ == "__main__":
+    main()

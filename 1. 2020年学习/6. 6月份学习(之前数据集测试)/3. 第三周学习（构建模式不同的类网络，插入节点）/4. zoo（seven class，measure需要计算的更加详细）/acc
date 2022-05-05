@@ -1,0 +1,5 @@
+k = 2
+classes = 7
+testsize = 0.2
+
+measures = global_efficiency    acc = 1.0   tiago = 1.0

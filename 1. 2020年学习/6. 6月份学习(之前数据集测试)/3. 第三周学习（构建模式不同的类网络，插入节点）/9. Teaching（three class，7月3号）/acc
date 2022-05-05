@@ -1,0 +1,8 @@
+数据集自己添加列名
+
+length_X_trian: 120
+length_X_test: 31
+k = 2
+classes = 3
+test_size = 0.2
+acc = 0.49-0.66  tiago = 0.553

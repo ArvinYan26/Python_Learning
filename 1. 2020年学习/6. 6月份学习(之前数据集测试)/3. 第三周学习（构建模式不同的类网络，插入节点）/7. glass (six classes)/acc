@@ -1,0 +1,7 @@
+length_X_trian: 192
+length_X_test: 22
+k = 2
+test_size = 0.1
+mesures : global_efficiency
+
+acc = 0.682  tiago = 0.66

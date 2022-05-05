@@ -1,0 +1,5 @@
+k=2,
+calsses = 3
+test_size=0.2 (36个)
+measures :global_efficiency
+acc = 0.972           tiago=0.80

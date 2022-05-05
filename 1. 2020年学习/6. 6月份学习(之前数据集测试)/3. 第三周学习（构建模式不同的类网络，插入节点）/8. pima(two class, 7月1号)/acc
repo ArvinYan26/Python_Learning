@@ -1,0 +1,7 @@
+length_X_trian: 691
+length_X_test: 77
+test_size = 0.1
+k = 2
+classes = 2
+tiago'measures:  acc = 0.636-0.727   tiago = 0.734
+efficiency:   acc = 0.74   tiago = 0.734

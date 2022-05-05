@@ -1,0 +1,9 @@
+k = 2
+testsize = 0.2 (40, 总160)
+class_num = 2
+
+moon- noise:0.25 acc = 0.925-0.975
+circles- noise:0.25 zcc = 0.6
+
+
+
